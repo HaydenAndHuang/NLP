@@ -115,21 +115,21 @@ class MultiHeadedAttention(nn.Module):
         ]
 
         # Debug shapes
-        print(f"Query shape after linear projection: {query.shape}")
-        print(f"Key shape after linear projection: {key.shape}")
-        print(f"Value shape after linear projection: {value.shape}")
+        #print(f"Query shape after linear projection: {query.shape}")
+        #print(f"Key shape after linear projection: {key.shape}")
+        #print(f"Value shape after linear projection: {value.shape}")
 
         # 2) Apply attention on all the projected vectors in batch.
         x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout)
-        print(f"x shape after attention: {x.shape}")
+        #print(f"x shape after attention: {x.shape}")
 
         # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
-        print(f"x shape after concatenation: {x.shape}")
+        #print(f"x shape after concatenation: {x.shape}")
 
         # Projecting back to d_model size (512 in your case)
         x = self.linears[-1](x)  # Apply the final linear layer after concatenation
-        print(f"x shape after final linear projection: {x.shape}")  # Should be [batch_size, seq_len, 512]
+        #print(f"x shape after final linear projection: {x.shape}")  # Should be [batch_size, seq_len, 512]
 
 
         return x
