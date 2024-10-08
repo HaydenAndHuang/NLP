@@ -138,7 +138,7 @@ class MultiHeadedAttention(nn.Module):
         assert d_model % h == 0, "d_model must be divisible by h"
         self.d_k = d_model // h
         self.h = h
-        self.linears = nn.ModuleList([nn.Linear(d_model, d_model) for _ in range(4)])
+        self.linears = nn.ModuleList([nn.Linear(d_model, d_model) for _ in range(4)])  # 4th for final projection
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
@@ -150,7 +150,7 @@ class MultiHeadedAttention(nn.Module):
         # 1) Linear projections
         query, key, value = [
             l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-            for l, x in zip(self.linears, (query, key, value))
+            for l, x in zip(self.linears[:3], (query, key, value))  # First three linear projections
         ]
 
         # Debug shapes
@@ -167,7 +167,12 @@ class MultiHeadedAttention(nn.Module):
         # 3) Concatenate and apply final linear
         x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         print(f"x shape after concatenation: {x.shape}")
-        return self.linears[-1](x)
+
+        # Projecting back to d_model size (512 in your case)
+        x = self.linears[-1](x)  # Apply the final linear layer after concatenation
+        print(f"x shape after final linear projection: {x.shape}")  # Should be [batch_size, seq_len, d_model]
+        
+        return x
         
     
 class PositionwiseFeedForward(nn.Module):
