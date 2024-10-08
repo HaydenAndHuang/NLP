@@ -74,7 +74,7 @@ class DecoderLayer(nn.Module):
         x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
         return self.sublayer[2](x, self.feed_forward)
     
- def attention(query, key, value, mask=None, dropout=None):
+def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)  # 64 in your case
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
