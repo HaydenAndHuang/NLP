@@ -77,7 +77,7 @@ class DecoderLayer(nn.Module):
     
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)
+    d_k = query.size(-1)  # 64 in your case
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
 
     if mask is not None:
@@ -89,13 +89,14 @@ def attention(query, key, value, mask=None, dropout=None):
     if dropout is not None:
         p_attn = dropout(p_attn)
 
-    # Check shape of attention output
+    # Attention output
     attn_output = torch.matmul(p_attn, value)
-    print(f"Attention output shape: {attn_output.shape}")
+    print(f"Attention output shape: {attn_output.shape}")  # Should be [batch_size, num_heads, seq_len, d_k]
 
-    # Ensure the shape collapses correctly
-    attn_output = attn_output.contiguous().view(query.size(0), query.size(2), -1)
-    print(f"Reshaped attention output: {attn_output.shape}")
+    # Correct reshaping: 
+    # From [batch_size, num_heads, seq_len, d_k] -> [batch_size, seq_len, num_heads * d_k]
+    attn_output = attn_output.transpose(1, 2).contiguous().view(query.size(0), -1, query.size(1) * d_k)
+    print(f"Reshaped attention output: {attn_output.shape}")  # Expected: [32, 72, 512]
 
     return attn_output, p_attn
     
