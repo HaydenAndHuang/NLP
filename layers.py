@@ -53,11 +53,11 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x, mask):
         "Follow Figure 1 (left) for connections."
-        print(f"Input to self-attention: {x.shape}")
+        #print(f"Input to self-attention: {x.shape}")
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
-        print(f"Output from self-attention: {x.shape}")
+        #print(f"Output from self-attention: {x.shape}")
         x = self.sublayer[1](x, self.feed_forward)
-        print(f"Output from feed-forward: {x.shape}")
+        #print(f"Output from feed-forward: {x.shape}")
         return self.sublayer[1](x, self.feed_forward)
     
     
