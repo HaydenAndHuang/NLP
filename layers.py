@@ -77,19 +77,27 @@ class DecoderLayer(nn.Module):
     
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)  # Dimension of the key/query
-    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)  # scale the dot products
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
 
     if mask is not None:
         mask = mask.unsqueeze(1)
-        scores = scores.masked_fill(mask == 0, float('-inf'))  # apply mask by setting positions to -inf
+        scores = scores.masked_fill(mask == 0, float('-inf'))
 
-    p_attn = torch.softmax(scores, dim=-1)  # convert scores to probabilities
+    p_attn = torch.softmax(scores, dim=-1)
 
     if dropout is not None:
-        p_attn = dropout(p_attn)  # apply dropout to the probabilities
+        p_attn = dropout(p_attn)
 
-    return torch.matmul(p_attn, value), p_attn  # return the attended value and the attention probabilities
+    # Check shape of attention output
+    attn_output = torch.matmul(p_attn, value)
+    print(f"Attention output shape: {attn_output.shape}")
+
+    # Ensure the shape collapses correctly
+    attn_output = attn_output.contiguous().view(query.size(0), query.size(2), -1)
+    print(f"Reshaped attention output: {attn_output.shape}")
+
+    return attn_output, p_attn
     
 
 
