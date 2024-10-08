@@ -91,11 +91,11 @@ def attention(query, key, value, mask=None, dropout=None):
 
     # Attention output
     attn_output = torch.matmul(p_attn, value)
-    print(f"Attention output shape: {attn_output.shape}")  # Should be [batch_size, num_heads, seq_len, d_k]
+    print(f"Attention output shape: {attn_output.shape}")  # Expected: [batch_size, num_heads, seq_len, d_k]
 
-    # Correct reshaping: 
-    # From [batch_size, num_heads, seq_len, d_k] -> [batch_size, seq_len, num_heads * d_k]
-    attn_output = attn_output.transpose(1, 2).contiguous().view(query.size(0), -1, query.size(1) * d_k)
+    # Correct reshaping
+    # From [batch_size, num_heads, seq_len, d_k] -> [batch_size, seq_len, d_model]
+    attn_output = attn_output.transpose(1, 2).contiguous().view(query.size(0), query.size(2), -1)
     print(f"Reshaped attention output: {attn_output.shape}")  # Expected: [32, 72, 512]
 
     return attn_output, p_attn
