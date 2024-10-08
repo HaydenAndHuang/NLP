@@ -5,6 +5,10 @@ from utils import clones
 from torch.nn.functional import log_softmax
 
 
+import torch.nn.functional as F
+
+
+
 
 class LayerNorm(nn.Module):
     "Construct a layernorm module - https://arxiv.org/abs/1607.06450"
