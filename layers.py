@@ -74,39 +74,28 @@ class DecoderLayer(nn.Module):
         x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
         return self.sublayer[2](x, self.feed_forward)
     
+
+
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)  # 64 in your case
+    d_k = query.size(-1)
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-
     if mask is not None:
-        mask = mask.unsqueeze(1)
-        scores = scores.masked_fill(mask == 0, float('-inf'))
-
-    p_attn = torch.softmax(scores, dim=-1)
-
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim = -1)
     if dropout is not None:
         p_attn = dropout(p_attn)
-
-    # Attention output
-    attn_output = torch.matmul(p_attn, value)
-    print(f"Attention output shape: {attn_output.shape}")  # Expected: [batch_size, num_heads, seq_len, d_k]
-
-    # Correct reshaping
-    # From [batch_size, num_heads, seq_len, d_k] -> [batch_size, seq_len, d_model]
-    attn_output = attn_output.transpose(1, 2).contiguous().view(query.size(0), query.size(2), -1)
-    print(f"Reshaped attention output: {attn_output.shape}")  # Expected: [32, 72, 512]
-
-    return attn_output, p_attn
-
+    return torch.matmul(p_attn, value), p_attn
     
+
+
 class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
         super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0, "d_model must be divisible by h"
+        assert d_model % h == 0
         self.d_k = d_model // h
         self.h = h
-        self.linears = nn.ModuleList([nn.Linear(d_model, d_model) for _ in range(4)])
+        self.linears = clones(nn.Linear(d_model, d_model), 4)
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
@@ -115,10 +104,10 @@ class MultiHeadedAttention(nn.Module):
             mask = mask.unsqueeze(1)
         nbatches = query.size(0)
 
-        # 1) Linear projections
+        # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = [
             l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-            for l, x in zip(self.linears[:3], (query, key, value))  # First three linear projections
+            for l, x in zip(self.linears, (query, key, value))
         ]
 
         # Debug shapes
@@ -126,21 +115,19 @@ class MultiHeadedAttention(nn.Module):
         print(f"Key shape after linear projection: {key.shape}")
         print(f"Value shape after linear projection: {value.shape}")
 
-        # 2) Apply attention
+        # 2) Apply attention on all the projected vectors in batch.
         x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout)
-
-        # Debug shapes after attention
         print(f"x shape after attention: {x.shape}")
 
-        # 3) Concatenate and apply final linear
-        # The concatenation should result in [batch_size, seq_len, d_model]
+        # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
         print(f"x shape after concatenation: {x.shape}")
 
         # Projecting back to d_model size (512 in your case)
         x = self.linears[-1](x)  # Apply the final linear layer after concatenation
         print(f"x shape after final linear projection: {x.shape}")  # Should be [batch_size, seq_len, 512]
-        
+
+
         return x
     
 class PositionwiseFeedForward(nn.Module):
