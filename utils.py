@@ -90,53 +90,63 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
 
 
 def beam_search_decode(model, src, src_mask, max_len, start_symbol, beam_size, end_idx):
-    model.eval()  # Ensure the model is in evaluation mode
+    """
+    Implement beam search decoding with 'beam_size' width
+    """
+    #To-do: Encode source input using the model
+    memory = model.encode(src, src_mask)
 
-    # Initialize the beam with the start symbol
-    # Each beam is a tuple of (score, sequence)
-    beam = [(0, [start_symbol])]
+    # Initialize decoder input and scores
+    ys = torch.ones(1, 1).fill_(start_symbol).type(torch.long).cuda()
+    scores = torch.Tensor([0.]).cuda()
 
-    for _ in range(max_len):
-        candidates = []
+    for i in range(max_len - 1):
+        # Decode using the model, memory, and source mask
+        out = model.decode(ys, memory, src_mask)
         
-        # Expand each hypothesis in the beam
-        for score, seq in beam:
-            # Check if the hypothesis ends with the end symbol
-            if seq[-1] == end_idx:
-                candidates.append((score, seq))
-                continue
-            
-            # Prepare input tensor
-            input_tensor = torch.LongTensor(seq).unsqueeze(0)
-            input_tensor = input_tensor.to(src.device)  # Move to the same device as source
+        # Calculate probabilities for the next token
+        prob = model.generator(out[:, -1])
+        vocab_size = prob.size(-1)
 
-            # Generate output probabilities from the model
-            with torch.no_grad():
-                logits = model(input_tensor, src_mask)
-                probs = logits.softmax(dim=-1)
+        # Set probabilities of end token to 0 (except when already ended)
+        prob[:, end_idx] = prob[:, end_idx] * (ys[:, -1] != end_idx).float()
 
-            # Get probabilities of the last output tokens
-            last_probs = probs[0, -1]
+        # Update scores
+        scores = scores.unsqueeze(1) + prob.log()
 
-            # Get top beam_size possibilities for the next token
-            top_probs, top_ix = last_probs.topk(beam_size)
-            for p, token_idx in zip(top_probs, top_ix):
-                # Append new sequence with the predicted token and add log prob to score
-                candidate_score = score + torch.log(p).item()  # Accumulate log probability
-                candidate_seq = seq + [token_idx.item()]
-                candidates.append((candidate_score, candidate_seq))
-        
-        # Sort all candidates by score in descending order and select the top beam_size
-        candidates.sort(reverse=True, key=lambda x: x[0])
-        beam = candidates[:beam_size]
+        # Get top-k scores and indices
+        scores, indices = scores.view(-1).topk(beam_size)
 
-        # Check if all in the beam are ended
-        if all(seq[-1] == end_idx for _, seq in beam):
+        # Extract beam indices and token indices from top-k scores
+        beam_indices = torch.div(indices, vocab_size, rounding_mode='floor')
+        token_indices = torch.remainder(indices, vocab_size)
+
+        # Prepare next decoder input
+        next_decoder_input = []
+        for beam_index, token_index in zip(beam_indices, token_indices):
+            if token_index == end_idx:
+                next_decoder_input.append(ys[beam_index])
+            else:
+                next_decoder_input.append(torch.cat([ys[beam_index], token_index.unsqueeze(0)], dim=-1))
+
+        # Update ys
+        ys = torch.stack(next_decoder_input)
+
+        # Check if all beams are finished, exit
+        if all(y[-1] == end_idx for y in ys):
             break
 
-    # Choose the sequence with the highest score
-    best_score, best_seq = max(beam, key=lambda x: x[0])
-    return best_seq
+        # Expand encoder output for beam size (only once)
+        if i == 0:
+            memory = memory.expand(beam_size, memory.size(1), memory.size(2))
+
+    # Return the top-scored sequence
+    best_score, best_idx = scores.max(0)
+    best_sequence = ys[best_idx].tolist()
+
+    # Convert the top scored sequence to a list of text tokens
+    return best_sequence
+
         
 
 
