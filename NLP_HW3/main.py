@@ -182,9 +182,8 @@ if __name__ == "__main__":
 
     # Device
     # This determines whether the program will run on a GPU
-    #device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
-    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     print("Using device:", device)
 
     # Load the tokenizer and Tokenize the dataset
