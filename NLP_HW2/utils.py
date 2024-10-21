@@ -63,7 +63,6 @@ class PositionalEncoding(nn.Module):
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-
         self.register_buffer("pe", pe)
 
     def forward(self, x):
@@ -91,63 +90,67 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
 
 def beam_search_decode(model, src, src_mask, max_len, start_symbol, beam_size, end_idx):
     """
-    Implement beam search decoding with 'beam_size' width
-    """
-    #To-do: Encode source input using the model
-    memory = model.encode(src, src_mask)
+    Perform beam search decoding on the given model to generate sequences.
 
-    # Initialize decoder input and scores
-    ys = torch.ones(1, 1).fill_(start_symbol).type(torch.long).cuda()
-    scores = torch.Tensor([0.]).cuda()
+    Args:
+    model (nn.Module): The seq2seq model to use for encoding and decoding.
+    src (Tensor): The source input tensor.
+    src_mask (Tensor): The source mask tensor.
+    max_len (int): The maximum length of the output sequence.
+    start_symbol (int): The index of the start symbol.
+    beam_size (int): The beam size to use for decoding.
+    end_idx (int): The index of the end-of-sequence token.
+
+    Returns:
+    Tensor: The best output sequence based on the highest score.
+    """
+    memory = model.encode(src, src_mask)
+    ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data).to(src.device)
+    
+    scores = torch.zeros(1).to(src.device)  
 
     for i in range(max_len - 1):
-        # Decode using the model, memory, and source mask
-        out = model.decode(ys, memory, src_mask)
+        out = model.decode(
+            memory, src_mask, ys, subsequent_mask(ys.size(1)).type_as(src.data)
+        )
+        prob = model.generator(out[:, -1])  
+        vocab_size = prob.shape[-1]
+
+
+        prob[ys[:, -1] == end_idx, :] = 0
+
+
+        scores = scores.unsqueeze(1) + prob  
         
-        # Calculate probabilities for the next token
-        prob = model.generator(out[:, -1])
-        vocab_size = prob.size(-1)
 
-        # Set probabilities of end token to 0 (except when already ended)
-        prob[:, end_idx] = prob[:, end_idx] * (ys[:, -1] != end_idx).float()
+        scores, indices = torch.topk(scores.reshape(-1), beam_size)
+        beam_indices = torch.div(indices, vocab_size, rounding_mode='floor')  
+        token_indices = torch.remainder(indices, vocab_size)  
 
-        # Update scores
-        scores = scores.unsqueeze(1) + prob.log()
+        next_ys = []
+        for beam_idx, token_idx in zip(beam_indices, token_indices):
+            if ys[beam_idx][-1] == end_idx:
+                token_idx = end_idx 
+            token_idx = torch.tensor([token_idx], device=ys.device)
+            next_ys.append(torch.cat([ys[beam_idx], token_idx]))
 
-        # Get top-k scores and indices
-        scores, indices = scores.view(-1).topk(beam_size)
+        ys = torch.vstack(next_ys) 
 
-        # Extract beam indices and token indices from top-k scores
-        beam_indices = torch.div(indices, vocab_size, rounding_mode='floor')
-        token_indices = torch.remainder(indices, vocab_size)
 
-        # Prepare next decoder input
-        next_decoder_input = []
-        for beam_index, token_index in zip(beam_indices, token_indices):
-            if token_index == end_idx:
-                next_decoder_input.append(ys[beam_index])
-            else:
-                next_decoder_input.append(torch.cat([ys[beam_index], token_index.unsqueeze(0)], dim=-1))
-
-        # Update ys
-        ys = torch.stack(next_decoder_input)
-
-        # Check if all beams are finished, exit
-        if all(y[-1] == end_idx for y in ys):
+        if (ys[:, -1] == end_idx).sum() == beam_size:
             break
 
-        # Expand encoder output for beam size (only once)
         if i == 0:
-            memory = memory.expand(beam_size, memory.size(1), memory.size(2))
+            memory = memory.expand(beam_size, *memory.shape[1:])  
+            src_mask = src_mask.expand(beam_size, *src_mask.shape[1:])
+    
+    # Return the sequence with the highest score
+    ys, _ = max(zip(ys, scores), key=lambda x: x[1])
+    return ys.unsqueeze(0)
 
-    # Return the top-scored sequence
-    best_score, best_idx = scores.max(0)
-    best_sequence = ys[best_idx].tolist()
 
-    # Convert the top scored sequence to a list of text tokens
-    return best_sequence
 
-        
+
 
 
 def collate_batch(
@@ -233,4 +236,3 @@ def compute_corpus_level_bleu(refs, hyps):
     bleu = sacrebleu.corpus_bleu(hyps, [refs])
 
     return bleu.score
-
