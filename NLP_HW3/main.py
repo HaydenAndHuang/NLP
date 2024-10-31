@@ -13,6 +13,10 @@ import argparse
 from utils import *
 import os
 
+import sys
+print(sys.path)
+
+
 # Set seed
 random.seed(0)
 torch.manual_seed(0)
