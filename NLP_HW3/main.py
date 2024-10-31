@@ -1,3 +1,6 @@
+import sys
+print(sys.path)
+
 import datasets
 from datasets import load_dataset
 from transformers import AutoTokenizer
@@ -12,9 +15,6 @@ import random
 import argparse
 from utils import *
 import os
-
-import sys
-print(sys.path)
 
 
 # Set seed
