@@ -35,17 +35,43 @@ def example_transform(example):
 
 
 def custom_transform(example):
-    ################################
-    ##### YOUR CODE BEGINGS HERE ###
+    text = example["text"]
+    words = word_tokenize(text)  # Tokenize the text
+    transformed_words = []
 
-    # Design and implement the transformation as mentioned in pdf
-    # You are free to implement any transformation but the comments at the top roughly describe
-    # how you could implement two of them --- synonym replacement and typos.
+    # Define parameters for the transformations
+    synonym_prob = 0.2  # Probability to replace a word with a synonym
+    typo_prob = 0.1     # Probability to introduce a typo in a word
+    typo_map = {
+        'a': 's', 's': 'a', 'd': 's', 'f': 'd', 'g': 'f',
+        'q': 'w', 'w': 'q', 'e': 'w', 'r': 'e', 't': 'r',
+        'y': 't', 'u': 'y', 'i': 'u', 'o': 'i', 'p': 'o',
+        'z': 'x', 'x': 'z', 'c': 'x', 'v': 'c', 'b': 'v',
+        'n': 'b', 'm': 'n', 'l': 'k', 'k': 'j', 'j': 'h'
+    }
 
-    # You should update example["text"] using your transformation
+    for word in words:
+        # Decide whether to replace with a synonym
+        if random.random() < synonym_prob:
+            synonyms = wordnet.synsets(word)
+            if synonyms:
+                # Find synonyms and choose one at random
+                synonym_words = synonyms[0].lemma_names()
+                synonym = random.choice(synonym_words)
+                transformed_words.append(synonym.replace('_', ' '))
+            else:
+                transformed_words.append(word)
+        # Decide whether to introduce a typo
+        elif random.random() < typo_prob:
+            typo_word = list(word)
+            idx = random.randint(0, len(typo_word) - 1)
+            if typo_word[idx].lower() in typo_map:
+                typo_word[idx] = typo_map[typo_word[idx].lower()]
+            transformed_words.append("".join(typo_word))
+        else:
+            transformed_words.append(word)
 
-    raise NotImplementedError
-
-    ##### YOUR CODE ENDS HERE ######
-
+    # Detokenize the transformed words back into a sentence
+    transformed_text = TreebankWordDetokenizer().detokenize(transformed_words)
+    example["text"] = transformed_text
     return example
