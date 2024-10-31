@@ -104,20 +104,36 @@ def do_eval(eval_dataloader, output_dir, out_file):
     return score
 
 
-# Created a dataladoer for the augmented training dataset
 def create_augmented_dataloader(args, dataset):
-    ################################
+        ################################
     ##### YOUR CODE BEGINGS HERE ###
 
     # Here, 'dataset' is the original dataset. You should return a dataloader called 'train_dataloader' -- this
     # dataloader will be for the original training split augmented with 5k random transformed examples from the training set.
     # You may find it helpful to see how the dataloader was created at other place in this code.
 
-    raise NotImplementedError
+    # Step 1: Select a subset of the training data and apply the transformation
+    augmented_subset = dataset["train"].shuffle(seed=42).select(range(5000))
+    transformed_subset = augmented_subset.map(custom_transform, load_from_cache_file=False)
+
+    # Step 2: Concatenate the original training dataset with the transformed subset
+    augmented_dataset = datasets.concatenate_datasets([dataset["train"], transformed_subset])
+
+    # Step 3: Tokenize the augmented dataset
+    tokenized_augmented_dataset = augmented_dataset.map(tokenize_function, batched=True, load_from_cache_file=False)
+
+    # Step 4: Prepare the dataset for use by the model
+    tokenized_augmented_dataset = tokenized_augmented_dataset.remove_columns(["text"])
+    tokenized_augmented_dataset = tokenized_augmented_dataset.rename_column("label", "labels")
+    tokenized_augmented_dataset.set_format("torch")
+
+    # Step 5: Create a DataLoader for the augmented training dataset
+    train_dataloader = DataLoader(tokenized_augmented_dataset, shuffle=True, batch_size=args.batch_size)
 
     ##### YOUR CODE ENDS HERE ######
 
     return train_dataloader
+
 
 
 '''
@@ -182,8 +198,9 @@ if __name__ == "__main__":
 
     # Device
     # This determines whether the program will run on a GPU
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    #device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    #device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     print("Using device:", device)
 
     # Load the tokenizer and Tokenize the dataset
